@@ -22,10 +22,16 @@ THE SOFTWARE.
 package cmd
 
 import (
+	"archive/tar"
+	"fmt"
 	"github.com/kmdkuk/go-chroot/log"
+	"github.com/mitchellh/go-homedir"
 	"github.com/spf13/cobra"
+	"io"
+	"os"
+	"path"
+	"path/filepath"
 
-	homedir "github.com/mitchellh/go-homedir"
 	"github.com/spf13/viper"
 )
 
@@ -43,7 +49,7 @@ This application is a tool to generate the needed files
 to quickly create a Cobra application.`,
 	// Uncomment the following line if your bare application
 	// has an action associated with it:
-	//	Run: func(cmd *cobra.Command, args []string) { },
+	Run: Run,
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
@@ -91,4 +97,71 @@ func initConfig() {
 	if err := viper.ReadInConfig(); err == nil {
 		log.Error("Using config file:", viper.ConfigFileUsed())
 	}
+}
+
+func Run(_ *cobra.Command, _ []string) {
+	log.Debug(os.TempDir())
+	err := extractToTemp("alpine.tar")
+	if err != nil {
+		log.Fatal(err)
+	}
+	err = os.RemoveAll(filepath.Join(os.TempDir(),"go-chroot"))
+	if err != nil {
+		log.Fatal(err)
+	}
+}
+
+func extractToTemp(filename string) error {
+	e := filepath.Ext(filename)
+	if e != ".tar" {
+		return fmt.Errorf("tar以外の拡張子に対応してません．: %s", e)
+	}
+	file, err := os.Open(filename)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+	targetDir := filepath.Join(os.TempDir(), "go-chroot")
+	reader := tar.NewReader(file)
+	for {
+		header, err := reader.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return err
+		}
+		target := path.Join(targetDir, header.Name)
+		switch header.Typeflag {
+		case tar.TypeDir:
+			err := os.MkdirAll(target, os.FileMode(header.Mode))
+			if err != nil {
+				return err
+			}
+			setAttrs(target, header)
+			break
+		case tar.TypeReg, tar.TypeSymlink:
+			w, err := os.Create(target)
+			if err != nil{
+				return err
+			}
+			_, err = io.Copy(w, reader)
+			if err != nil {
+				return err
+			}
+			w.Close()
+
+			setAttrs(target, header)
+			break
+		default:
+			return fmt.Errorf("unsupported type: %v", string(header.Typeflag))
+			break
+		}
+	}
+	return nil
+}
+
+func setAttrs(target string, header *tar.Header){
+	os.Chmod(target, os.FileMode(header.Mode))
+	os.Chtimes(target, header.AccessTime, header.ModTime)
 }
