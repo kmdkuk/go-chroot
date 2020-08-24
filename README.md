@@ -9,7 +9,11 @@ you can also notify slack of test results.
 
 ## How To Use
 
-1. Create a new repository from the "Use This Template" button on this repository.
-2. Clone to your machine.
-3. Run `./scripts/change_name.sh <your GitHub ID>/<new repository>` For example, `./scripts/change_name.sh kmdkuk/hogecli`
-4. Start your development!
+```shell script
+$ vagrant up
+$ vagrant ssh
+$ cd go-chroot
+# /tmp/go-chroot以下にdockerから持ってきたalpineのファイルを展開そこをrootとして，alpineの/bin/shを実行
+$ sudo go run main.go
+```
+
