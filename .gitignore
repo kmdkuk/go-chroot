@@ -94,3 +94,12 @@ fabric.properties
 bin/
 
 
+### https://raw.github.com/github/gitignore/36ce3a894d9ddff2916bc98d71380aa7167ff1d7/Global/Vagrant.gitignore
+
+# General
+.vagrant/
+
+# Log files (if you are creating logs in debug mode, uncomment this)
+# *.log
+
+

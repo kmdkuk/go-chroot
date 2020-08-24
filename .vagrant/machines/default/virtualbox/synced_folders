@@ -1,1 +1,0 @@
-{"virtualbox":{"/home/vagrant/go-chroot":{"create":"true","guestpath":"/home/vagrant/go-chroot","hostpath":"/Users/kmdkuk/go/src/github.com/kmdkuk/go-chroot","disabled":false,"__vagrantfile":true},"/vagrant":{"guestpath":"/vagrant","hostpath":"/Users/kmdkuk/go/src/github.com/kmdkuk/go-chroot","disabled":false,"__vagrantfile":true}}}
