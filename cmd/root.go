@@ -22,15 +22,14 @@ THE SOFTWARE.
 package cmd
 
 import (
-	"archive/tar"
-	"fmt"
 	"github.com/kmdkuk/go-chroot/log"
 	"github.com/mitchellh/go-homedir"
 	"github.com/spf13/cobra"
-	"io"
 	"os"
-	"path"
+	"os/exec"
+
 	"path/filepath"
+	"syscall"
 
 	"github.com/spf13/viper"
 )
@@ -105,63 +104,42 @@ func Run(_ *cobra.Command, _ []string) {
 	if err != nil {
 		log.Fatal(err)
 	}
-	err = os.RemoveAll(filepath.Join(os.TempDir(),"go-chroot"))
-	if err != nil {
-		log.Fatal(err)
-	}
+	targetDir := filepath.Join(os.TempDir(), "go-chroot")
+	defer func() {
+		err = os.RemoveAll(targetDir)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}()
+	chrootExecSh(targetDir)
 }
 
 func extractToTemp(filename string) error {
-	e := filepath.Ext(filename)
-	if e != ".tar" {
-		return fmt.Errorf("tar以外の拡張子に対応してません．: %s", e)
+	targetDir := filepath.Join(os.TempDir(), "go-chroot")
+	f, err := os.Stat(targetDir)
+	if os.IsNotExist(err) || f.IsDir() {
+		os.MkdirAll(targetDir, 0755)
 	}
-	file, err := os.Open(filename)
+	err = exec.Command("tar", "-xvf", filename, "-C", targetDir).Run()
 	if err != nil {
 		return err
-	}
-	defer file.Close()
-	targetDir := filepath.Join(os.TempDir(), "go-chroot")
-	reader := tar.NewReader(file)
-	for {
-		header, err := reader.Next()
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			return err
-		}
-		target := path.Join(targetDir, header.Name)
-		switch header.Typeflag {
-		case tar.TypeDir:
-			err := os.MkdirAll(target, os.FileMode(header.Mode))
-			if err != nil {
-				return err
-			}
-			setAttrs(target, header)
-			break
-		case tar.TypeReg, tar.TypeSymlink:
-			w, err := os.Create(target)
-			if err != nil{
-				return err
-			}
-			_, err = io.Copy(w, reader)
-			if err != nil {
-				return err
-			}
-			w.Close()
-
-			setAttrs(target, header)
-			break
-		default:
-			return fmt.Errorf("unsupported type: %v", string(header.Typeflag))
-			break
-		}
 	}
 	return nil
 }
 
-func setAttrs(target string, header *tar.Header){
-	os.Chmod(target, os.FileMode(header.Mode))
-	os.Chtimes(target, header.AccessTime, header.ModTime)
+func chrootExecSh(targetDir string) error {
+	err := syscall.Chroot(targetDir)
+	if err != nil {
+		log.Fatal(err)
+	}
+	err = syscall.Chdir("/")
+	if err != nil {
+		log.Fatal(err)
+	}
+	cmd := exec.Command("/bin/sh")
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	return cmd.Run()
 }
