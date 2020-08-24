@@ -22,8 +22,8 @@ THE SOFTWARE.
 package main
 
 import (
-	"github.com/kmdkuk/go-cli-template/cmd"
-	"github.com/kmdkuk/go-cli-template/log"
+	"github.com/kmdkuk/go-chroot/cmd"
+	"github.com/kmdkuk/go-chroot/log"
 )
 
 func main() {

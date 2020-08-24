@@ -1,4 +1,4 @@
-module github.com/kmdkuk/go-cli-template
+module github.com/kmdkuk/go-chroot
 
 go 1.14
 

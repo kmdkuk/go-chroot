@@ -18,7 +18,7 @@ package cmd
 import (
 	"fmt"
 
-	"github.com/kmdkuk/go-cli-template/version"
+	"github.com/kmdkuk/go-chroot/version"
 	"github.com/spf13/cobra"
 )
 
