@@ -1,0 +1,8 @@
+{
+  "go.gopath": "/home/vagrant/go/1.14.4",
+  "go.goroot": "/home/vagrant/.goenv/versions/1.14.4",
+  "go.autocompleteUnimportedPackages": true,
+  "go.formatTool": "goimports",
+  "go.lintTool": "golangci-lint",
+  "go.useLanguageServer": true,
+}

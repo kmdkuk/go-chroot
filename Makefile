@@ -29,8 +29,12 @@ bin/go-chroot: $(BUILD_FILES)
 	go build -trimpath -ldflags "$(GO_LDFLAGS)" -o "$@" .
 
 dev: $(BUILD_FILES)
-	go build -trimpath -ldflags "$(DEV_LDFLAGS)" -o "bin/go-chroot-dev" .
+	go build -trimpath -ldflags "$(DEV_LDFLAGS)" -gcflags "all=-N -l" -o "bin/go-chroot-dev" .
+
+dlv: $(BUILD_FILES)
+	$(MAKE) dev
+	dlv --listen=:2345 --headless=true --api-version=2 --accept-multiclient exec ./bin/go-chroot-dev
 
 test:
 	go test ./...
-.PHONY: test
+.PHONY: dev test
