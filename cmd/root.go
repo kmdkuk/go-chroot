@@ -24,14 +24,15 @@ package cmd
 import (
 	"os"
 	"os/exec"
+	"syscall"
 
 	"github.com/kmdkuk/go-chroot/log"
 	"github.com/mitchellh/go-homedir"
 	"github.com/spf13/cobra"
 
 	"path/filepath"
-	"syscall"
 
+	"github.com/docker/docker/pkg/reexec"
 	"github.com/spf13/viper"
 )
 
@@ -72,6 +73,11 @@ func init() {
 	// Cobra also supports local flags, which will only run
 	// when this action is called directly.
 	rootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+
+	reexec.Register("nsInit", nsInit)
+	if reexec.Init() {
+		log.Fatal("reexec.Init() error")
+	}
 }
 
 // initConfig reads in config file and ENV variables if set.
@@ -135,18 +141,61 @@ func extractToTemp(filename string) error {
 }
 
 func chrootExecSh(targetDir string) error {
-	err := syscall.Chroot(targetDir)
-	if err != nil {
-		return err
+	// err := syscall.Chroot(targetDir)
+	// if err != nil {
+	// 	return err
+	// }
+	// err = syscall.Chdir("/")
+	// if err != nil {
+	// 	return err
+	// }
+	cmd := reexec.Command("nsInit")
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	cmd.Env = []string{"PS1=-[ns-process]- # "}
+
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+		Cloneflags: syscall.CLONE_NEWNS |
+			syscall.CLONE_NEWUTS |
+			syscall.CLONE_NEWIPC |
+			syscall.CLONE_NEWPID |
+			syscall.CLONE_NEWNET |
+			syscall.CLONE_NEWUSER,
+		UidMappings: []syscall.SysProcIDMap{
+			{
+				ContainerID: 0,
+				HostID:      os.Geteuid(),
+				Size:        1,
+			},
+		},
+		GidMappings: []syscall.SysProcIDMap{
+			{
+				ContainerID: 0,
+				HostID:      os.Getgid(),
+				Size:        1,
+			},
+		},
 	}
-	err = syscall.Chdir("/")
-	if err != nil {
-		return err
-	}
+
+	return cmd.Run()
+}
+
+func nsInit() {
+	log.Debug("namespace setup code goes here")
+	nsRun()
+}
+
+func nsRun() {
 	cmd := exec.Command("/bin/sh")
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
-	return cmd.Run()
+	cmd.Env = []string{"PS1=-[ns-process]- # "}
+
+	if err := cmd.Run(); err != nil {
+		log.Fatalf("Error runnning the /bin/sh command - %s\n", err)
+	}
 }
