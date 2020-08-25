@@ -22,11 +22,12 @@ THE SOFTWARE.
 package cmd
 
 import (
+	"os"
+	"os/exec"
+
 	"github.com/kmdkuk/go-chroot/log"
 	"github.com/mitchellh/go-homedir"
 	"github.com/spf13/cobra"
-	"os"
-	"os/exec"
 
 	"path/filepath"
 	"syscall"
@@ -111,14 +112,20 @@ func Run(_ *cobra.Command, _ []string) {
 			log.Fatal(err)
 		}
 	}()
-	chrootExecSh(targetDir)
+	err = chrootExecSh(targetDir)
+	if err != nil {
+		log.Fatal(err)
+	}
 }
 
 func extractToTemp(filename string) error {
 	targetDir := filepath.Join(os.TempDir(), "go-chroot")
 	f, err := os.Stat(targetDir)
 	if os.IsNotExist(err) || f.IsDir() {
-		os.MkdirAll(targetDir, 0755)
+		err = os.MkdirAll(targetDir, 0755)
+		if err != nil {
+			return err
+		}
 	}
 	err = exec.Command("tar", "-xvf", filename, "-C", targetDir).Run()
 	if err != nil {
@@ -130,11 +137,11 @@ func extractToTemp(filename string) error {
 func chrootExecSh(targetDir string) error {
 	err := syscall.Chroot(targetDir)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 	err = syscall.Chdir("/")
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 	cmd := exec.Command("/bin/sh")
 	cmd.Stdin = os.Stdin
