@@ -28,6 +28,9 @@ GO_LDFLAGS := -X github.com/kmdkuk/go-chroot/version.Version=$(VERSION) $(GO_LDF
 bin/go-chroot: $(BUILD_FILES)
 	go build -trimpath -ldflags "$(GO_LDFLAGS)" -o "$@" .
 
+run: $(BUILD_FILES)
+	go run main.go
+
 dev: $(BUILD_FILES)
 	go build -trimpath -ldflags "$(DEV_LDFLAGS)" -gcflags "all=-N -l" -o "bin/go-chroot-dev" .
 

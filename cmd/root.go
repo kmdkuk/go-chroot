@@ -181,8 +181,12 @@ func execSh(targetDir string) error {
 func nsInit() {
 	log.Debug("nsInit start")
 	newrootPath := filepath.Join(os.TempDir(), "go-chroot")
+
+	if err := mountProc(newrootPath); err != nil {
+		log.Fatal("Error Mounting /proc - ", err)
+	}
 	if err := pivotRoot(newrootPath); err != nil {
-		log.Fatal(err)
+		log.Fatal("Error running pivot_root - ", err)
 	}
 	nsRun()
 }
@@ -238,5 +242,28 @@ func pivotRoot(newroot string) error {
 		return err
 	}
 
+	return nil
+}
+
+func mountProc(newroot string) error {
+	source := "proc"
+	target := filepath.Join(newroot, "/proc")
+	fstype := "proc"
+	flags := 0
+	data := ""
+
+	if err := os.MkdirAll(target, 0755); err != nil {
+		return err
+	}
+
+	if err := syscall.Mount(
+		source,
+		target,
+		fstype,
+		uintptr(flags),
+		data,
+	); err != nil {
+		return err
+	}
 	return nil
 }
