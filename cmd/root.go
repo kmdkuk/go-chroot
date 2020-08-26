@@ -74,6 +74,11 @@ func init() {
 	// when this action is called directly.
 	rootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 
+	log.Debug("alpine.tarを展開")
+	if err := extractToTemp("alpine.tar"); err != nil {
+		log.Fatal(err)
+	}
+
 	reexec.Register("nsInit", nsInit)
 	if reexec.Init() {
 		log.Fatal("reexec.Init() error")
@@ -106,20 +111,9 @@ func initConfig() {
 }
 
 func Run(_ *cobra.Command, _ []string) {
-	log.Debug(os.TempDir())
-	err := extractToTemp("alpine.tar")
-	if err != nil {
-		log.Fatal(err)
-	}
 	targetDir := filepath.Join(os.TempDir(), "go-chroot")
-	defer func() {
-		err = os.RemoveAll(targetDir)
-		if err != nil {
-			log.Fatal(err)
-		}
-	}()
-	err = chrootExecSh(targetDir)
-	if err != nil {
+
+	if err := execSh(targetDir); err != nil {
 		log.Fatal(err)
 	}
 }
@@ -133,22 +127,24 @@ func extractToTemp(filename string) error {
 			return err
 		}
 	}
-	err = exec.Command("tar", "-xvf", filename, "-C", targetDir).Run()
-	if err != nil {
+	tarCmd := exec.Command("/bin/tar", "--no-same-owner", "-xvf", filename, "-C", targetDir)
+	tarCmd.Stderr = os.Stderr
+	if err := tarCmd.Run(); err != nil {
 		return err
 	}
 	return nil
 }
 
-func chrootExecSh(targetDir string) error {
-	// err := syscall.Chroot(targetDir)
-	// if err != nil {
-	// 	return err
-	// }
-	// err = syscall.Chdir("/")
-	// if err != nil {
-	// 	return err
-	// }
+func execSh(targetDir string) error {
+	log.Debug("execSh started")
+	// 実行が終わったらtmpに展開していたfsを削除
+	defer func() {
+		err := os.RemoveAll(targetDir)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}()
+
 	cmd := reexec.Command("nsInit")
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
@@ -183,19 +179,64 @@ func chrootExecSh(targetDir string) error {
 }
 
 func nsInit() {
-	log.Debug("namespace setup code goes here")
+	log.Debug("nsInit start")
+	newrootPath := filepath.Join(os.TempDir(), "go-chroot")
+	if err := pivotRoot(newrootPath); err != nil {
+		log.Fatal(err)
+	}
 	nsRun()
 }
 
 func nsRun() {
+	log.Debug("nsRun started")
 	cmd := exec.Command("/bin/sh")
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
-	cmd.Env = []string{"PS1=-[ns-process]- # "}
-
+	cmd.Env = []string{"PS1=-[ns-process-nsRun]- # "}
 	if err := cmd.Run(); err != nil {
 		log.Fatalf("Error runnning the /bin/sh command - %s\n", err)
 	}
+	log.Debug("nsRun finished")
+}
+
+func pivotRoot(newroot string) error {
+	putold := filepath.Join(newroot, "./.pivot_root")
+
+	if err := syscall.Mount(
+		newroot,
+		newroot,
+		"",
+		syscall.MS_BIND|syscall.MS_REC,
+		"",
+	); err != nil {
+		return err
+	}
+
+	if err := os.MkdirAll(putold, 0700); err != nil {
+		return err
+	}
+
+	if err := syscall.PivotRoot(newroot, putold); err != nil {
+		return err
+	}
+
+	if err := os.Chdir("/"); err != nil {
+		return err
+	}
+
+	putold = "/.pivot_root"
+	if err := syscall.Unmount(
+		putold,
+		syscall.MNT_DETACH,
+	); err != nil {
+		return err
+	}
+
+	if err := os.RemoveAll(putold); err != nil {
+		return err
+	}
+
+	return nil
 }
